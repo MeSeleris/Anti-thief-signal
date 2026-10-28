@@ -1,46 +1,80 @@
+using System.Collections;
 using UnityEngine;
 
 public class HouseAlarm : MonoBehaviour
 {
-    [SerializeField] private AudioSource alarmSource;
+    [SerializeField] private AudioSource _alarmSource;
+    [SerializeField] private AlarmTrigger _trigger;
     [SerializeField] private float _speed = 0.5f;
-    [SerializeField] private float _targetVolume = 0f;
 
-    private void Start()
+    private Coroutine _volumeCoroutine;
+
+    private void Awake()
     {
-        alarmSource.volume = 0f;
-        alarmSource.Stop();
+        _alarmSource.volume = 0f;
+        _alarmSource.Stop();
     }
 
-    private void Update()
+    private void OnEnable()
     {
-        alarmSource.volume = Mathf.MoveTowards(alarmSource.volume, _targetVolume, _speed * Time.deltaTime);
-
-        if (alarmSource.volume <= 0 && _targetVolume == 0 && alarmSource.isPlaying)
+        if (_trigger != null)
         {
-            alarmSource.Stop();
+            _trigger.ThiefEnter += OnThiefEntered;
+            _trigger.ThiefExit += OnThiefExited;
         }
     }
 
-    private void OnTriggerEnter(Collider other)
+    private void OnDisable()
     {
-        if (other.CompareTag("Player"))
+        if (_trigger != null)
         {
-            _targetVolume = 1f;
-
-            if(alarmSource.isPlaying == false)
-            {
-                alarmSource.Play();
-            }
+            _trigger.ThiefEnter -= OnThiefEntered;
+            _trigger.ThiefExit -= OnThiefExited;
         }
-        
     }
 
-    private void OnTriggerExit(Collider other)
+    private void OnThiefEntered()
     {
-        if (other.CompareTag("Player"))
+        if(_alarmSource.isPlaying == false)
         {
-            _targetVolume = 0f;
+            _alarmSource.volume = 0.01f;
+            _alarmSource.Play();
         }
+
+        StartVolumecChange(1f);
+    }
+
+    private void OnThiefExited()
+    {
+        StartVolumecChange(0f);
+    }
+
+   private void StartVolumecChange(float targetVolume)
+    {
+        if (_volumeCoroutine != null)
+        {
+            StopCoroutine(_volumeCoroutine);
+        }
+
+        _volumeCoroutine = StartCoroutine(ChangeVolumeRoutine(targetVolume));
+    }
+
+    private IEnumerator ChangeVolumeRoutine(float targetVolume)
+    {
+        while (!Mathf.Approximately(_alarmSource.volume, targetVolume))
+        {
+            _alarmSource.volume = Mathf.MoveTowards(_alarmSource.volume, targetVolume, _speed * Time.deltaTime);
+
+            yield return null;
+        }
+
+        _alarmSource.volume = targetVolume;
+
+        if(Mathf.Approximately(_alarmSource.volume, 0f) && _alarmSource.isPlaying)
+        {
+            _alarmSource.Stop();
+        }
+
+        _volumeCoroutine = null;
     }
 }
